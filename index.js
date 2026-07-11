@@ -9,7 +9,8 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URI)
+mongoose
+  .connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB connected");
   })
@@ -50,11 +51,12 @@ const sender = nodemailer.createTransport({
 });
 
 app.post("/signup", async (req, res) => {
-  try {
-    const year = new Date().getFullYear();
-    const Code = Math.floor(100000 + Math.random() * 900000);
-    const mail = req.body.mail;
-    const template = `<!DOCTYPE html>
+  const { mail } = req.body;
+
+  const Code = Math.floor(100000 + Math.random() * 900000);
+  const year = new Date().getFullYear();
+
+  const template = `<!DOCTYPE html>
 <html>
 <head>
 <meta charset="UTF-8">
@@ -143,18 +145,25 @@ font-size:13px;">
 </body>
 </html>`;
 
+  try {
     if (!mail) {
-      res.json("Enter Email");
+      return res.status(400).json({
+        message: "Email is required",
+      });
     }
 
-    const userexist = await User.findOne({ Email: mail });
+    const existingUser = await User.findOne({ Email: mail });
 
-    if (!userexist) {
+    if (existingUser) {
+      existingUser.Code = Code;
+      await existingUser.save();
+    } else {
       await User.create({
         Email: mail,
         Code: Code,
       });
     }
+
 
     await sender.sendMail({
       from: `"Famora" <${process.env.MAIL_USER}>`,
@@ -163,12 +172,15 @@ font-size:13px;">
       html: template,
     });
 
-    res.status(200).json({
-      message: "Confirmation code sent on email",
+    return res.status(200).json({
+      message: "Confirmation code sent to your email.",
     });
   } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Server Error" });
+    console.error(error);
+
+    return res.status(500).json({
+      message: "Internal Server Error",
+    });
   }
 });
 

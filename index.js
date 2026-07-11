@@ -9,8 +9,7 @@ const app = express();
 app.use(cors());
 app.use(express.json());
 
-mongoose
-  .connect(process.env.MONGO_URI)
+mongoose.connect(process.env.MONGO_URI)
   .then(() => {
     console.log("MongoDB connected");
   })
@@ -26,14 +25,17 @@ const userSchema = new mongoose.Schema({
   Code: {
     type: Number,
   },
-  password: {
+  Password: {
+    type: String,
+  },
+  Name: {
     type: String,
   },
   Username: {
     type: String,
   },
-  age: {
-    type: Number,
+  Birthdate: {
+    type: Date,
   },
 });
 
@@ -162,13 +164,14 @@ font-size:13px;">
     });
 
     res.status(200).json({
-      message: "Confirmation code sent on email"
+      message: "Confirmation code sent on email",
     });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server Error" });
   }
 });
+
 app.post("/signupAuth", async (req, res) => {
   try {
     const mail = req.body.mail;
@@ -185,13 +188,66 @@ app.post("/signupAuth", async (req, res) => {
       });
 
       validUser.Code = undefined;
-      await userexist.save();
-
+      await validUser.save();
     } else {
       return res.status(401).json({
         message: "Invalid Code. Try again",
       });
     }
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
+app.post("/createPassword", async (req, res) => {
+  try {
+    const mail = req.body.mail;
+    const Password = req.body.password;
+
+    const userExist = await User.findOne({ Email: mail });
+
+    if (!userExist) {
+      return res.status(404).json({
+        message: "No account found with the given Email",
+      });
+    }
+
+    userExist.Password = Password;
+    await userExist.save();
+
+    res.status(200).json({
+      message: "Password updated successfully",
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Server Error" });
+  }
+});
+
+app.post("/account_setup", async (req, res) => {
+  try {
+    const mail = req.body.mail;
+    const birthday = req.body.birthdate;
+    const name = req.body.name;
+    const username = req.body.username;
+
+    const userExist = await User.findOne({ Email: mail });
+
+    if (!userExist) {
+      return res.status(404).json({
+        message: "No account found ",
+      });
+    }
+
+    userExist.Birthdate = birthday;
+    userExist.Name = name;
+    userExist.Username = username;
+    await userExist.save();
+
+    res.status(200).json({
+      message: "account created successfully",
+    });
   } catch (error) {
     console.log(error);
     res.status(500).json({ message: "Server Error" });
@@ -225,29 +281,14 @@ app.post("/login", async (req, res) => {
     }
 
     res.status(200).json({
-      message: "User found",
+      message: "Logged in successfully",
+      user,
     });
   } catch (error) {
     console.error(error);
     res.status(500).json({
       message: "Server Error",
     });
-  }
-});
-
-app.post("/createPassword", async (req, res) => {
-  try {
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Server Error" });
-  }
-});
-
-app.post("/profile_info", async (req, res) => {
-  try {
-  } catch (error) {
-    console.log(error);
-    res.status(500).json({ message: "Server Error" });
   }
 });
 

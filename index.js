@@ -286,7 +286,7 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    if (user.password !== password) {
+    if (user.Password !== password) {
       return res.status(401).json({
         message: "Incorrect Password",
       });

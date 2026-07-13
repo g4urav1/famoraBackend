@@ -187,7 +187,7 @@ font-size:13px;">
 app.post("/signupAuth", async (req, res) => {
   try {
     const mail = req.body.mail;
-    const Code = req.body.Code;
+    const Code = req.body.code;
 
     const validUser = await User.findOne({
       Email: mail,
@@ -240,9 +240,9 @@ app.post("/createPassword", async (req, res) => {
 app.post("/account_setup", async (req, res) => {
   try {
     const mail = req.body.mail;
-    const birthday = req.body.birthdate;
+    const birthdate = req.body.birthday;
     const name = req.body.name;
-    const username = req.body.username;
+    const username = req.body.userName;
 
     const userExist = await User.findOne({ Email: mail });
 
@@ -252,7 +252,7 @@ app.post("/account_setup", async (req, res) => {
       });
     }
 
-    userExist.Birthdate = birthday;
+    userExist.Birthdate = birthdate;
     userExist.Name = name;
     userExist.Username = username;
     await userExist.save();

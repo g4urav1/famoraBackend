@@ -38,6 +38,12 @@ const userSchema = new mongoose.Schema({
   Birthdate: {
     type: Date,
   },
+  ResetToken: {
+    type: String,
+  },
+  ResetTokenExpiry: {
+    type: Date,
+  },
 });
 
 const User = mongoose.model("User", userSchema);
@@ -304,6 +310,99 @@ app.post("/login", async (req, res) => {
   }
 });
 
+app.post("/forgot-password", async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ Email: email });
+
+    // Don't reveal whether the email exists
+    if (!user) {
+      return res.status(200).json({
+        message:
+          "If an account exists, a password reset link has been sent.",
+      });
+    }
+
+    const token = Math.random().toString(36).substring(2) + Date.now();
+
+    user.ResetToken = token;
+    user.ResetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
+
+    await user.save();
+
+    const link = `http://localhost:5173/password/reset?token=${token}`;
+
+    const html = `
+      <h2>Reset your password</h2>
+
+      <p>Click the button below to reset your password.</p>
+
+      <a href="${link}"
+         style="
+         background:#8B5CF6;
+         color:white;
+         padding:12px 20px;
+         border-radius:8px;
+         text-decoration:none;">
+         Reset Password
+      </a>
+
+      <p>This link expires in 15 minutes.</p>
+    `;
+
+    await sender.sendMail({
+      from: `"Famora" <${process.env.MAIL_USER}>`,
+      to: email,
+      subject: "Reset your password",
+      html,
+    });
+
+    res.status(200).json({
+      message: "Reset link sent.",
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      message: "Server Error",
+    });
+  }
+});
+
+app.post("/reset-password", async (req, res) => {
+  try {
+    const { token, password } = req.body;
+
+    const user = await User.findOne({
+      ResetToken: token,
+      ResetTokenExpiry: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid or expired reset link.",
+      });
+    }
+
+    user.Password = password;
+
+    user.ResetToken = undefined;
+    user.ResetTokenExpiry = undefined;
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Password changed successfully.",
+    });
+  } catch (err) {
+    console.log(err);
+
+    res.status(500).json({
+      message: "Server Error",
+    });
+  }
+});
 app.listen(process.env.port, () => {
   console.log("http://localhost:" + process.env.port);
 });

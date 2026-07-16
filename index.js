@@ -3,6 +3,7 @@ import express from "express";
 import cors from "cors";
 import nodemailer from "nodemailer";
 import mongoose from "mongoose";
+import bcrypt from "bcrypt";
 
 const app = express();
 
@@ -223,6 +224,9 @@ app.post("/createPassword", async (req, res) => {
     const mail = req.body.mail;
     const Password = req.body.password;
 
+
+    const hashedPassword = await bcrypt.hash(Password, 10);
+
     const userExist = await User.findOne({ Email: mail });
 
     if (!userExist) {
@@ -231,7 +235,7 @@ app.post("/createPassword", async (req, res) => {
       });
     }
 
-    userExist.Password = Password;
+    userExist.Password = hashedPassword;
     await userExist.save();
 
     res.status(200).json({
@@ -292,7 +296,9 @@ app.post("/login", async (req, res) => {
       });
     }
 
-    if (user.Password !== password) {
+    const MatchedPassword = await bcrypt.compare(password, user.Password);
+
+    if (!MatchedPassword) {
       return res.status(401).json({
         message: "Incorrect Password",
       });
@@ -316,7 +322,6 @@ app.post("/forgot-password", async (req, res) => {
 
     const user = await User.findOne({ Email: email });
 
-    // Don't reveal whether the email exists
     if (!user) {
       return res.status(200).json({
         message:
@@ -327,28 +332,152 @@ app.post("/forgot-password", async (req, res) => {
     const token = Math.random().toString(36).substring(2) + Date.now();
 
     user.ResetToken = token;
-    user.ResetTokenExpiry = new Date(Date.now() + 15 * 60 * 1000);
 
     await user.save();
 
     const link = `http://localhost:5173/password/reset?token=${token}`;
 
     const html = `
-      <h2>Reset your password</h2>
+     <!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reset Password</title>
+</head>
 
-      <p>Click the button below to reset your password.</p>
+<body style="margin:0;padding:0;background:#f4f4f7;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;">
 
-      <a href="${link}"
-         style="
-         background:#8B5CF6;
-         color:white;
-         padding:12px 20px;
-         border-radius:8px;
-         text-decoration:none;">
-         Reset Password
-      </a>
+  <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background:#f4f4f7;padding:40px 20px;">
+    <tr>
+      <td align="center">
 
-      <p>This link expires in 15 minutes.</p>
+        <table role="presentation" width="600" cellspacing="0" cellpadding="0"
+          style="max-width:600px;background:#ffffff;border-radius:20px;overflow:hidden;
+          box-shadow:0 12px 35px rgba(0,0,0,.08);">
+
+          <tr>
+            <td align="center"
+              style="padding:48px 40px;background:linear-gradient(135deg,#7C3AED,#A855F7);">
+
+
+              <h1 style="
+                margin:24px 0 10px;
+                color:#fff;
+                font-size:32px;
+                font-weight:700;">
+                Reset Your Password
+              </h1>
+
+              <p style="
+                margin:0;
+                color:rgba(255,255,255,.9);
+                font-size:16px;
+                line-height:26px;">
+                Secure your account by creating a new password.
+              </p>
+
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding:48px 40px;">
+
+              <h2 style="
+                margin:0 0 18px;
+                color:#111827;
+                font-size:24px;">
+                Hello,
+              </h2>
+
+              <p style="
+                margin:0 0 18px;
+                color:#6B7280;
+                font-size:16px;
+                line-height:28px;">
+
+                We received a request to reset the password associated with your account.
+
+                If you made this request, click the button below to choose a new password.
+              </p>
+              <table role="presentation" cellspacing="0" cellpadding="0" style="margin:35px auto;">
+                <tr>
+                  <td align="center"
+                    style="
+                    border-radius:12px;
+                    background:linear-gradient(135deg,#7C3AED,#A855F7);">
+
+                    <a href="${link}"
+                      style="
+                      display:inline-block;
+                      padding:16px 34px;
+                      color:#ffffff;
+                      font-size:16px;
+                      font-weight:600;
+                      text-decoration:none;
+                      border-radius:12px;">
+                      Reset Password →
+                    </a>
+
+                  </td>
+                </tr>
+              </table>
+
+         
+              <div style="
+                height:1px;
+                background:#E5E7EB;
+                margin:40px 0;">
+              </div>
+
+              
+
+            </td>
+          </tr>
+
+          <tr>
+            <td style="
+              padding:32px 40px;
+              background:#F9FAFB;
+              border-top:1px solid #E5E7EB;
+              text-align:center;">
+
+              <p style="
+                margin:0 0 12px;
+                color:#374151;
+                font-size:15px;
+                font-weight:600;">
+                Didn't request a password reset?
+              </p>
+
+              <p style="
+                margin:0;
+                color:#6B7280;
+                font-size:14px;
+                line-height:24px;">
+
+                You can safely ignore this email. Your password will remain unchanged.
+              </p>
+
+              <p style="
+                margin-top:28px;
+                color:#9CA3AF;
+                font-size:13px;">
+                © 2026 Your Company. All rights reserved.
+              </p>
+
+            </td>
+          </tr>
+
+        </table>
+
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>
+
     `;
 
     await sender.sendMail({
@@ -376,7 +505,6 @@ app.post("/reset-password", async (req, res) => {
 
     const user = await User.findOne({
       ResetToken: token,
-      ResetTokenExpiry: { $gt: new Date() },
     });
 
     if (!user) {
@@ -385,10 +513,9 @@ app.post("/reset-password", async (req, res) => {
       });
     }
 
-    user.Password = password;
-
+    const hashedPassword = await bcrypt.hash(password, 10);
+    user.Password = hashedPassword;
     user.ResetToken = undefined;
-    user.ResetTokenExpiry = undefined;
 
     await user.save();
 

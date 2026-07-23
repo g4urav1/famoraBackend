@@ -4,6 +4,7 @@ import cors from "cors";
 import nodemailer from "nodemailer";
 import mongoose from "mongoose";
 import bcrypt from "bcrypt";
+import crypto from "crypto";
 
 const app = express();
 
@@ -27,6 +28,9 @@ const userSchema = new mongoose.Schema({
   Code: {
     type: Number,
   },
+  Contact: {
+    type: Number,
+  },
   Password: {
     type: String,
   },
@@ -44,6 +48,9 @@ const userSchema = new mongoose.Schema({
   },
   ResetTokenExpiry: {
     type: Date,
+  },
+  SessionId: {
+    type: String,
   },
 });
 
@@ -171,7 +178,6 @@ font-size:13px;">
       });
     }
 
-
     await sender.sendMail({
       from: `"Famora" <${process.env.MAIL_USER}>`,
       to: mail,
@@ -223,7 +229,6 @@ app.post("/createPassword", async (req, res) => {
   try {
     const mail = req.body.mail;
     const Password = req.body.password;
-
 
     const hashedPassword = await bcrypt.hash(Password, 10);
 
@@ -304,9 +309,13 @@ app.post("/login", async (req, res) => {
       });
     }
 
+    const SessionId = crypto.randomBytes(32).toString("hex");
+    user.SessionId = SessionId;
+    await user.save();
     res.status(200).json({
       message: "Logged in successfully",
       user,
+      SessionId,
     });
   } catch (error) {
     console.error(error);
@@ -324,8 +333,7 @@ app.post("/forgot-password", async (req, res) => {
 
     if (!user) {
       return res.status(200).json({
-        message:
-          "If an account exists, a password reset link has been sent.",
+        message: "If an account exists, a password reset link has been sent.",
       });
     }
 
@@ -530,6 +538,48 @@ app.post("/reset-password", async (req, res) => {
     });
   }
 });
+
+app.post("editProfile", async (req, res) => {
+  try {
+    const { SessionId, Name, Phone, UserName, Password } = req.body;
+
+    const user = await User.findOne({ SessionId });
+
+    if (!user) {
+      return res.status(401).json({
+        message: "Invalid Session",
+      });
+    }
+    if (user.Password !== Password) {
+      return res.status(401).json({
+        message: "Incorrect Password",
+      });
+    }
+
+    if (Name !== undefined) {
+      user.Name = Name;
+    }
+
+    if (Contact !== undefined) {
+      user.Phone = Phone;
+    }
+
+    if (UserName !== undefined) {
+      user.UserName = UserName;
+    }
+
+    await user.save();
+
+    res.status(200).json({
+      message: "Profile updated successfully",
+      user,
+    });
+  } catch (error) {
+    console.log(error);
+    res.status(500).json({ message: "Internal Server Error" });
+  }
+});
+
 app.listen(process.env.port, () => {
   console.log("http://localhost:" + process.env.port);
 });
